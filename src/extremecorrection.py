@@ -145,24 +145,24 @@ class Gev_ExtremeCorrection():
     def return_period_plot(self, show_corrected=False, show_uncorrected=True):
 
         # GEV fit over a grid of x-values
-        x_vals_gev_hist = np.linspace(self.max_data_corrected[0], self.max_data_corrected[-1], 1000)
+        self.x_vals_gev_hist = np.linspace(self.max_data_corrected[0], self.max_data_corrected[-1], 1000)
         # Return period from GEV fit
-        gev_probs_fitted = stats.genextreme.cdf(x_vals_gev_hist, self.gev_parameters[2], loc=self.gev_parameters[0], scale=self.gev_parameters[1])
-        T_gev_fitted = 1.0 / (1.0 - gev_probs_fitted)
+        gev_probs_fitted = stats.genextreme.cdf(self.x_vals_gev_hist, self.gev_parameters[2], loc=self.gev_parameters[0], scale=self.gev_parameters[1])
+        self.T_gev_fitted = 1.0 / (1.0 - gev_probs_fitted)
 
         # Corrected peaks: re-check CDF and return periods
         ecdf_annmax_probs_corrected_hist = stats.genextreme.cdf(
             stats.genextreme.ppf(self.ecdf_annmax_probs_hist, self.gev_parameters[2], loc=self.gev_parameters[0], scale=self.gev_parameters[1]),
             self.gev_parameters[2], loc=self.gev_parameters[0], scale=self.gev_parameters[1]
         )
-        T_ev_corrected_hist = 1.0 / (1.0 - ecdf_annmax_probs_corrected_hist) #*(40/self.n_peaks)
+        self.T_ev_corrected_hist = 1.0 / (1.0 - ecdf_annmax_probs_corrected_hist) #*(40/self.n_peaks)
         
         # Daily corrected data
         ecdf_pt_probs_corrected_hist = np.arange(1, self.n_pit + 1) / (self.n_pit + 1)
-        T_pt_corrected_hist = 1.0 / (1.0 - ecdf_pt_probs_corrected_hist) #/ n_return_period[wt] 
+        T_pt_corrected_hist = 1.0 / (1.0 - ecdf_pt_probs_corrected_hist) / self.freq #/ n_return_period[wt] 
         
         # POT (uncorrected)
-        T_pot_hist = 1.0 / (1.0 - self.ecdf_annmax_probs_hist) #*(40/self.n_peaks)
+        self.T_pot_hist = 1.0 / (1.0 - self.ecdf_annmax_probs_hist) #*(40/self.n_peaks)
         
 
         # Confidence intervals
@@ -173,30 +173,30 @@ class Gev_ExtremeCorrection():
         invI0_gev = np.linalg.inv(hessians_gev)
 
         stdDq_gev = np.sqrt(np.sum((dqgev.T@invI0_gev) * dqgev.T, axis=1)) # Es lo mismo 
-        stdup_gev = self.max_data_corrected + stdDq_gev*stats.norm.ppf(1-(1-self.conf)/2,0,1)
-        stdlo_gev = self.max_data_corrected - stdDq_gev*stats.norm.ppf(1-(1-self.conf)/2,0,1)
+        self.stdup_gev = self.max_data_corrected + stdDq_gev*stats.norm.ppf(1-(1-self.conf)/2,0,1)
+        self.stdlo_gev = self.max_data_corrected - stdDq_gev*stats.norm.ppf(1-(1-self.conf)/2,0,1)
 
 
 
         # Gráfico
         fig = plt.figure(figsize=(12,8))
         ax= fig.add_subplot()
-        ax.semilogx(T_gev_fitted, np.sort(x_vals_gev_hist), color = 'orange',linestyle='dashed', label='Fitted GEV')
+        ax.semilogx(self.T_gev_fitted, np.sort(self.x_vals_gev_hist), color = 'orange',linestyle='dashed', label='Fitted GEV')
 
         # Corrected data 
         if show_corrected:
             ax.semilogx(T_pt_corrected_hist, np.sort(self.pit_data_corrected), linewidth=0, marker='o',markersize=3, label='Corrected Daily Data')
-            ax.semilogx(T_ev_corrected_hist, stats.genextreme.ppf(self.ecdf_annmax_probs_hist, self.gev_parameters[2], loc=self.gev_parameters[0], scale=self.gev_parameters[1]), color = 'orange',linewidth=0, marker='o',markersize=3, label=r'Corrected Annual Maxima')
+            ax.semilogx(self.T_ev_corrected_hist, stats.genextreme.ppf(self.ecdf_annmax_probs_hist, self.gev_parameters[2], loc=self.gev_parameters[0], scale=self.gev_parameters[1]), color = 'orange',linewidth=0, marker='o',markersize=3, label=r'Corrected Annual Maxima')
 
         # No corrected data
         if show_uncorrected:
-            ax.semilogx(T_pot_hist, self.max_data_sorted, color="green", linewidth=0, marker='+',markersize=3, label='Annual Maxima')
+            ax.semilogx(self.T_pot_hist, self.max_data_sorted, color="green", linewidth=0, marker='+',markersize=3, label='Annual Maxima')
             ax.semilogx(T_pt_corrected_hist, self.pit_data_sorted, color="purple", linewidth=0, marker='+',markersize=3, label='Daily Data')
 
 
         # Confidence interval for fitted GEV
-        ax.semilogx(T_ev_corrected_hist, stdup_gev, color = "black",linestyle='dotted', label=f'{self.conf} Conf Int')
-        ax.semilogx(T_ev_corrected_hist, stdlo_gev, color = "black",linestyle='dotted')
+        ax.semilogx(self.T_ev_corrected_hist, self.stdup_gev, color = "black",linestyle='dotted', label=f'{self.conf} Conf Int')
+        ax.semilogx(self.T_ev_corrected_hist, self.stdlo_gev, color = "black",linestyle='dotted')
 
         ax.set_xlabel("Return Periods (Years)")
         ax.set_ylabel(f"{self.var}")
@@ -259,9 +259,8 @@ class Gev_ExtremeCorrection():
     def gev_ppplot(self):
 
         # Calcular cuantiles teóricos de la GPD ajustada
-        n = len(self.max_data)
-        probabilities = (np.arange(1, n + 1)) / (n+1)  # Probabilidades de los cuantiles empíricos
-        gev_probs = stats.genextreme.cdf(self.max_data, c=self.gev_parameters[2], loc=self.gev_parameters[0], scale=self.gev_parameters[1])
+        probabilities = (np.arange(1, self.n_peaks + 1)) / (self.n_peaks+1)  # Probabilidades de los cuantiles empíricos
+        gev_probs = stats.genextreme.cdf(self.max_data_sorted, c=self.gev_parameters[2], loc=self.gev_parameters[0], scale=self.gev_parameters[1])
 
         # Crear el QQ-plot
         fig = plt.figure(figsize=(7, 7))
@@ -284,7 +283,8 @@ class Gev_ExtremeCorrection():
         Args:
             simulated_data (pd.DataFrame): Simulated data frame in with the same vairables as the historical one.
         """
-        
+        self.simulated_data = simulated_data
+
         self.sim_max_data = simulated_data.groupby([self.yyyy_var], as_index=False)[self.var].max()[self.var].values     # Simulated annual maxima data
         self.sim_max_idx = simulated_data.groupby([self.yyyy_var])[self.var].idxmax().values                             # Simulated annual maxima indices
         self.sim_max_data_sorted = np.sort(self.sim_max_data)                                                                 # Sorted simulated annual maxima
@@ -298,10 +298,10 @@ class Gev_ExtremeCorrection():
 
 
         self.sim_first_year = np.min(simulated_data[self.yyyy_var].values)
-        self.year_intervals = self.n_sim_peaks//self.n_peaks
+        self.n_year_intervals = self.n_sim_peaks//self.n_peaks
         # Divide the simulated data in intervals of historical length
         self.sim_max_data_idx_intervals = {}
-        for i_year in range(self.year_intervals):
+        for i_year in range(self.n_year_intervals):
             self.sim_max_data_idx_intervals[i_year] = simulated_data[(self.sim_first_year + self.n_peaks*i_year <= simulated_data[self.yyyy_var]) & (simulated_data[self.yyyy_var] < self.sim_first_year+self.n_peaks*(i_year+1))].groupby([self.yyyy_var])[self.var].idxmax().values           
 
 
@@ -353,7 +353,7 @@ class Gev_ExtremeCorrection():
         
         # Daily corrected data
         ecdf_pt_probs_corrected_sim = np.arange(1, self.n_sim_pit + 1) / (self.n_sim_pit + 1)
-        T_pt_corrected_sim = 1.0 / (1.0 - ecdf_pt_probs_corrected_sim) #/ n_return_period[wt] 
+        T_pt_corrected_sim = 1.0 / (1.0 - ecdf_pt_probs_corrected_sim) / self.freq #/ n_return_period[wt] 
         
         # POT (uncorrected)
         T_pot_sim = 1.0 / (1.0 - self.ecdf_annmax_probs_sim) #*(40/len(max_data_hist[wt]))#(10000/n_peaks)
@@ -397,7 +397,7 @@ class Gev_ExtremeCorrection():
         ax.set_xscale('log')
         ax.set_xticks([1, 2, 5, 10, 20, 50, 100, 250, 1000, 10000])
         ax.get_xaxis().set_major_formatter(plt.ScalarFormatter())
-        ax.set_xlim(right=250)
+        ax.set_xlim(right=self.n_sim_peaks+self.n_sim_peaks//10)
         ax.legend()
         ax.grid()
         if self.folder is not None:
@@ -408,7 +408,98 @@ class Gev_ExtremeCorrection():
         """
         Periodo de retorno de la serie simulada dividido en intervalos de longitud el nº de años históricos
         """
-        ...
+
+        # By years interval
+        new_max_idx_sim_int = {}
+        annual_maxima_corr_sim_int = {}
+        ecdf_annual_maxima_sim_int = {}
+        T_ecdf_annual_maxima_sim_int = {}
+        # No corrected
+        annual_maxima_nocorr_sim_int = {}
+        ecdf_annual_maxima_nocorr_sim_int = {}
+        T_ecdf_annual_maxima_nocorr_sim_int = {}
+        for i_year in range(self.n_year_intervals):
+            # Corrected
+            new_max_idx_sim_int[i_year] = self.simulated_data[self.var][~np.isnan(self.simulated_data[self.var].values)].index.get_indexer(self.sim_max_data_idx_intervals[i_year])
+            annual_maxima_corr_sim_int[i_year] = self.sim_pit_data_corrected[new_max_idx_sim_int[i_year]]
+            ecdf_annual_maxima_sim_int[i_year] = np.arange(1,len(annual_maxima_corr_sim_int[i_year])+1)/(len(annual_maxima_corr_sim_int[i_year])+1)
+            T_ecdf_annual_maxima_sim_int[i_year] = 1/(1-ecdf_annual_maxima_sim_int[i_year])*(self.n_peaks/len(self.sim_max_data_idx_intervals[i_year]))  
+            # No corrected
+            annual_maxima_nocorr_sim_int[i_year] = self.simulated_data[self.var][~np.isnan(self.simulated_data[self.var].values)][self.sim_max_data_idx_intervals[i_year]].values
+            ecdf_annual_maxima_nocorr_sim_int[i_year] = np.arange(1,len(annual_maxima_nocorr_sim_int[i_year])+1)/(len(annual_maxima_nocorr_sim_int[i_year])+1)
+            T_ecdf_annual_maxima_nocorr_sim_int[i_year] = 1/(1-ecdf_annual_maxima_nocorr_sim_int[i_year])*(self.n_peaks/len(self.sim_max_data_idx_intervals[i_year]))  
+
+        # Plot
+        fig = plt.figure(figsize=(16,8))
+        ax1= fig.add_subplot(121)   
+        ax2= fig.add_subplot(122)   
+
+        # Serie simulada 40 por 40 años SIN CORREGIR
+        max1 = []
+        max1.append(np.max(annual_maxima_nocorr_sim_int[0]))
+        ax1.semilogx(T_ecdf_annual_maxima_nocorr_sim_int[0], np.sort(annual_maxima_nocorr_sim_int[0]), color = "tab:gray", alpha = 0.1, label="No Corrected Simulated Data by 40 Years")
+        for i_year in range(1,self.n_year_intervals):
+            max1.append(np.max(annual_maxima_nocorr_sim_int[i_year]))
+            ax1.semilogx(T_ecdf_annual_maxima_nocorr_sim_int[i_year], np.sort(annual_maxima_nocorr_sim_int[i_year]), color = "tab:gray", alpha = 0.1)
+
+        # Serie simulada 40 por 40 años CORREGIDA
+        max2 = []
+        max2.append(np.max(annual_maxima_corr_sim_int[0]))
+        ax2.semilogx(T_ecdf_annual_maxima_nocorr_sim_int[0], np.sort(annual_maxima_corr_sim_int[0]), color = "tab:gray", alpha = 0.1, label="Corrected Simulated Data by 40 Years")
+        for i_year in range(1,self.n_year_intervals):
+            max2.append(np.max(annual_maxima_corr_sim_int[i_year]))
+            ax2.semilogx(T_ecdf_annual_maxima_nocorr_sim_int[i_year], np.sort(annual_maxima_corr_sim_int[i_year]), color = "tab:gray", alpha = 0.1)
+
+
+        # Annual Return Periods
+        # ax.semilogx(T_ev_corrected_hist[wt], stats.genextreme.ppf(ecdf_annmax_probs_hist[wt], shape_gev[wt], loc=loc_gev[wt], scale=scale_gev[wt]), 
+        #             color = "#FF0000", linewidth=0, marker='o',markersize=3, label=r'Corrected Annual Maxima')
+        ax1.semilogx(self.T_gev_fitted, np.sort(self.x_vals_gev_hist), color = "tab:red",linestyle='dashed', label=f'Adjusted GEV')
+        ax1.semilogx(self.T_pot_hist, self.max_data_sorted, color="tab:blue", linewidth=0, marker='o',markersize=4, label='Annual Maxima')
+        
+        ax2.semilogx(self.T_gev_fitted, np.sort(self.x_vals_gev_hist), color = "tab:red",linestyle='dashed', label=f'Adjusted GEV')
+        ax2.semilogx(self.T_pot_hist, self.max_data_sorted, color="tab:blue", linewidth=0, marker='o',markersize=4, label='Annual Maxima')
+        
+        # Confidence intervals
+        ax1.semilogx(self.T_ev_corrected_hist, self.stdup_gev, color = "black",linestyle='dotted', label=f'{self.conf} Conf Int')
+        ax1.semilogx(self.T_ev_corrected_hist, self.stdlo_gev, color = "black",linestyle='dotted')
+        
+        ax2.semilogx(self.T_ev_corrected_hist, self.stdup_gev, color = "black",linestyle='dotted', label=f'{self.conf} Conf Int')
+        ax2.semilogx(self.T_ev_corrected_hist, self.stdlo_gev, color = "black",linestyle='dotted')
+        
+        
+
+        ax1.set_xlabel("Return Periods (Years)")
+        ax1.set_ylabel(f"{self.var}")
+        ax1.set_xscale('log')
+        ax1.set_xticks([1, 2, 5, 10, 20, 50, 100, 250, 1000, 10000])
+        ax1.get_xaxis().set_major_formatter(plt.ScalarFormatter())
+        leg1 = ax1.legend(loc='upper left', ncol=2)
+        for lh in leg1.legend_handles:
+            lh.set_alpha(1)
+        ax1.grid(True, which="both", linestyle="--", linewidth=0.5)
+        ax1.set_ylim(bottom = -0.1, top = np.max([np.max(max1), np.max(max2)])+0.1)
+        ax1.set_xlim(right=50)
+        ax1.set_title("No Corrected")
+
+
+        ax2.set_xlabel("Return Periods (Years)")
+        ax2.set_ylabel(f"{self.var}")
+        ax2.set_xscale('log')
+        ax2.set_xticks([1, 2, 5, 10, 20, 50, 100, 250, 1000, 10000])
+        ax2.get_xaxis().set_major_formatter(plt.ScalarFormatter())
+        leg2 = ax2.legend(loc='upper left', ncol=2)
+        for lh in leg2.legend_handles:
+            lh.set_alpha(1)
+        ax2.grid(True, which="both", linestyle="--", linewidth=0.5)
+        ax2.set_ylim(bottom = -0.1, top = np.max([np.max(max1), np.max(max2)])+0.1)
+        ax2.set_xlim(right=50)
+        ax2.set_title("Corrected")
+
+        fig.tight_layout()
+        if self.folder is not None:
+            plt.savefig(f"{self.folder}/ComparativeIntervals_ReturnPeriod.png", dpi=300)
+        plt.close(fig)
 
     def time_series_plot():
         """
